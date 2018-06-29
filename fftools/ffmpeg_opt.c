@@ -159,6 +159,7 @@ static void init_options(OptionsContext *o)
     memset(o, 0, sizeof(*o));
 
     o->stop_time = INT64_MAX;
+    o->stop_time_eof  = AV_NOPTS_VALUE;
     o->mux_max_delay  = 0.7;
     o->start_time     = AV_NOPTS_VALUE;
     o->start_time_eof = AV_NOPTS_VALUE;
@@ -979,6 +980,16 @@ static int open_input_file(OptionsContext *o, const char *filename)
         av_log(NULL, AV_LOG_WARNING, "-t and -to cannot be used together; using -t.\n");
     }
 
+    if (o->stop_time_eof != AV_NOPTS_VALUE && o->recording_time != INT64_MAX) {
+        o->stop_time_eof = AV_NOPTS_VALUE;
+        av_log(NULL, AV_LOG_WARNING, "-t and -toeof cannot be used together; using -t for %s.\n", filename);
+    }
+
+    if (o->stop_time != INT64_MAX && o->stop_time_eof != AV_NOPTS_VALUE) {
+        o->stop_time_eof = AV_NOPTS_VALUE;
+        av_log(NULL, AV_LOG_WARNING, "-to and -toeof cannot be used together; using -to for %s.\n", filename);
+    }
+
     if (o->stop_time != INT64_MAX && o->recording_time == INT64_MAX) {
         int64_t start_time = o->start_time == AV_NOPTS_VALUE ? 0 : o->start_time;
         if (o->stop_time <= start_time) {
@@ -1121,6 +1132,24 @@ static int open_input_file(OptionsContext *o, const char *filename)
             }
         } else
             av_log(NULL, AV_LOG_WARNING, "Cannot use -sseof, duration of %s not known\n", filename);
+    }
+
+    if (o->stop_time_eof != AV_NOPTS_VALUE) {
+        if (o->stop_time_eof >= 0) {
+            av_log(NULL, AV_LOG_ERROR, "-toeof value must be negative; aborting\n");
+            exit_program(1);
+        }
+        if (ic->duration > 0) {
+            o->recording_time = ic->duration + o->stop_time_eof;
+            if (o->start_time != AV_NOPTS_VALUE) {
+                o->recording_time -= o->start_time;
+                if (o->recording_time <= 0) {
+                    av_log(NULL, AV_LOG_WARNING, "-toeof value seeks to before start of file %s; ignored\n", filename);
+                    o->recording_time += o->start_time;
+                }
+            }
+        } else
+            av_log(NULL, AV_LOG_WARNING, "Cannot use -toeof, duration of %s not known\n", filename);
     }
     timestamp = (o->start_time == AV_NOPTS_VALUE) ? 0 : o->start_time;
     /* add the stream start time */
@@ -3347,6 +3376,8 @@ const OptionDef options[] = {
         "duration" },
     { "to",             HAS_ARG | OPT_TIME | OPT_OFFSET | OPT_INPUT | OPT_OUTPUT,  { .off = OFFSET(stop_time) },
         "record or transcode stop time", "time_stop" },
+    { "toeof",          HAS_ARG | OPT_TIME | OPT_OFFSET | OPT_INPUT, { .off = OFFSET(stop_time_eof) },
+        "input stop time relative to EOF", "time_stop" },
     { "fs",             HAS_ARG | OPT_INT64 | OPT_OFFSET | OPT_OUTPUT, { .off = OFFSET(limit_filesize) },
         "set the limit file size in bytes", "limit_size" },
     { "ss",             HAS_ARG | OPT_TIME | OPT_OFFSET |

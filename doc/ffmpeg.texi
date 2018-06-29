@@ -488,6 +488,12 @@ see @ref{time duration syntax,,the Time duration section in the ffmpeg-utils(1) 
 
 -to and -t are mutually exclusive and -t has priority.
 
+@item -toeof @var{position} (@emph{input})
+Stop reading the input at @var{position} relative to the "end of file". That is,
+larger negative values are later in the file, 0 is at EOF.
+
+-toeof and -to, as well as -toeof and -t, are mutually exclusive, and -to, or respectively -t, has priority.
+
 @item -fs @var{limit_size} (@emph{output})
 Set the file size limit, expressed in bytes. No further chunk of bytes is written
 after the limit is exceeded. The size of the output file is slightly more than the
